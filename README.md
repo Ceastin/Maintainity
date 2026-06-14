@@ -83,7 +83,7 @@
 
 ## 1. System Architecture
 
-![System Architecture Overview](docs/screenshots/architecture_diagram.png)
+![System Architecture Overview](docs/screenshots/architecture.png)
 
 ### 1.1 Research-Level Technical Blueprint
 
@@ -828,7 +828,7 @@ npm run lint     # ESLint code validation
 ### System Architecture Overview
 High-level view of the decoupled architecture, client-server boundaries, storage layers, and core engine components.
 
-![System Architecture Overview](docs/screenshots/architecture_diagram.png)
+![System Architecture Overview](docs/screenshots/architecture.png)
 
 ### Research-Level Technical Blueprint
 An academic-depth blueprint illustrating multi-modal telemetry ingestion, hybrid diagnostic scoring, and the agentic RAG reasoning pipeline.
@@ -838,17 +838,17 @@ An academic-depth blueprint illustrating multi-modal telemetry ingestion, hybrid
 ### Operations Dashboard
 The main dashboard delivers a plant-wide overview: real-time equipment health tiles, sensor trend visualisations, alert management, and AI-powered status indicators — all in one unified view.
 
-![Operations Dashboard — Plant summary, equipment health tiles, sensor trend charts, and alert management](docs/screenshots/dashboard_overview.png)
+![Operations Dashboard — Plant summary, equipment health tiles, sensor trend charts, and alert management](docs/screenshots/dashboard,png.png)
 
 ### AI Recommendation Panel
 The recommendation panel presents the complete AI-generated maintenance analysis — diagnosis, root causes, prioritised action checklist, cited evidence with relevance scores, and the full node-trace pipeline visualisation.
 
-![AI Recommendation Panel — Diagnosis, root causes, actions, evidence, and node trace pipeline](docs/screenshots/recommendation_panel.png)
+![AI Recommendation Panel — Diagnosis, root causes, actions, evidence, and node trace pipeline](docs/screenshots/Recommendation_Interface.png)
 
 ### Maintenance Wizard Chat
 The copilot interface supports multi-turn conversational maintenance queries with full context retention, conversation memory, and equipment-specific responses grounded in the RAG + ML pipeline.
 
-![Maintenance Wizard Chat — Multi-turn AI copilot for maintenance queries](docs/screenshots/wizard_chat.png)
+![Maintenance Wizard Chat — Multi-turn AI copilot for maintenance queries](docs/screenshots/Chat_box.png)
 
 ### ML Predictive Insights
 The predictive insights panel surfaces real-time ML performance metrics, failure probability trend lines, predicted failure mode distributions, and feature importance rankings — delivering transparent and explainable AI diagnostics.
