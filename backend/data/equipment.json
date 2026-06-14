@@ -1,0 +1,57 @@
+[
+  {
+    "id": "rm-motor-01",
+    "name": "Rolling Mill Stand 2 Drive Motor",
+    "area": "Hot Rolling Mill",
+    "asset_type": "AC drive motor",
+    "criticality": 0.95,
+    "status": "critical",
+    "description": "Main drive motor for finishing stand 2. AI4I rotational speed, torque, process temperature, and tool-wear signals are mapped to motor load, current, vibration, and thermal stress.",
+    "thresholds": {
+      "temperature_c": { "max": 92 },
+      "vibration_mm_s": { "max": 7.2 },
+      "current_a": { "max": 420 },
+      "speed_rpm": { "min": 1200, "max": 2600 },
+      "torque_nm": { "max": 62 },
+      "tool_wear_min": { "max": 190 },
+      "delay_minutes": { "max": 20 }
+    }
+  },
+  {
+    "id": "bf-pump-07",
+    "name": "Blast Furnace Cooling Pump P-7",
+    "area": "Blast Furnace",
+    "asset_type": "centrifugal pump",
+    "criticality": 0.98,
+    "status": "high",
+    "description": "Cooling water circulation pump for tuyere cooling loop. AI4I power-failure and heat-dissipation signatures are mapped to pump flow, pressure, vibration, and temperature risk.",
+    "thresholds": {
+      "temperature_c": { "max": 78 },
+      "vibration_mm_s": { "max": 5.8 },
+      "pressure_bar": { "min": 4.8, "max": 7.2 },
+      "flow_m3_h": { "min": 420 },
+      "torque_nm": { "max": 64 },
+      "tool_wear_min": { "max": 200 },
+      "delay_minutes": { "max": 15 }
+    }
+  },
+  {
+    "id": "conv-gearbox-03",
+    "name": "Raw Material Conveyor Gearbox",
+    "area": "Raw Material Yard",
+    "asset_type": "helical gearbox",
+    "criticality": 0.72,
+    "status": "medium",
+    "description": "Gearbox for conveyor C-13 feeding sinter raw material bins. AI4I tool-wear and overstrain failure modes are mapped to gearbox oil particles, vibration, and wear progression.",
+    "thresholds": {
+      "temperature_c": { "max": 82 },
+      "vibration_mm_s": { "max": 6.4 },
+      "oil_particles_ppm": { "max": 95 },
+      "speed_rpm": { "min": 110, "max": 170 },
+      "torque_nm": { "max": 62 },
+      "tool_wear_min": { "max": 195 },
+      "delay_minutes": { "max": 30 }
+    }
+  }
+]
+

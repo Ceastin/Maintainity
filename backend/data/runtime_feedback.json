@@ -1,0 +1,101 @@
+[
+  {
+    "recommendation_id": "rec-cd843909c2",
+    "equipment_id": "rm-motor-01",
+    "rating": "accepted",
+    "actual_root_cause": "Bearing grease line blockage",
+    "action_taken": "Cleared grease line and realigned coupling",
+    "downtime_saved_minutes": 35,
+    "note": null,
+    "id": "fb-e5606439ae",
+    "timestamp": "2026-06-08T12:03:57.496298Z"
+  },
+  {
+    "recommendation_id": "rec-1fa7625c7e",
+    "equipment_id": "rm-motor-01",
+    "rating": "accepted",
+    "actual_root_cause": "AI4I heat-dissipation or power-failure pattern mapped to drive motor thermal/load stress.",
+    "action_taken": "Accepted plan: Reduce rolling load and isolate the motor at the next safe pass gap.",
+    "downtime_saved_minutes": 0,
+    "note": "Recommendation accepted from the maintenance review panel.",
+    "id": "fb-0a5055478d",
+    "timestamp": "2026-06-09T11:46:28.755773Z"
+  },
+  {
+    "recommendation_id": "rec-1fa7625c7e",
+    "equipment_id": "rm-motor-01",
+    "rating": "accepted",
+    "actual_root_cause": "AI4I heat-dissipation or power-failure pattern mapped to drive motor thermal/load stress.",
+    "action_taken": "Accepted plan: Reduce rolling load and isolate the motor at the next safe pass gap.",
+    "downtime_saved_minutes": 0,
+    "note": "Recommendation accepted from the maintenance review panel.",
+    "id": "fb-b56c98add0",
+    "timestamp": "2026-06-09T11:46:31.211625Z"
+  },
+  {
+    "recommendation_id": "rec-438ddf992d",
+    "equipment_id": "rm-motor-01",
+    "rating": "accepted",
+    "actual_root_cause": "Bearing grease line blockage",
+    "action_taken": "Cleared grease line and realigned coupling",
+    "downtime_saved_minutes": 35,
+    "note": null,
+    "id": "fb-d1766312ee",
+    "timestamp": "2026-06-12T16:41:39.545242Z"
+  },
+  {
+    "recommendation_id": "rec-7e5a779755",
+    "equipment_id": "rm-motor-01",
+    "rating": "accepted",
+    "actual_root_cause": "AI4I heat-dissipation or power-failure pattern mapped to drive motor thermal/load stress.",
+    "action_taken": "Accepted plan: Reduce rolling load and isolate the motor at the next safe pass gap.",
+    "downtime_saved_minutes": 0,
+    "note": "Recommendation accepted from the maintenance review panel.",
+    "id": "fb-92290c0013",
+    "timestamp": "2026-06-12T18:13:16.178443Z"
+  },
+  {
+    "recommendation_id": "rec-beea49a020",
+    "equipment_id": "rm-motor-01",
+    "rating": "accepted",
+    "actual_root_cause": "AI4I heat-dissipation or power-failure pattern mapped to drive motor thermal/load stress.",
+    "action_taken": "Accepted plan: Reduce rolling load and isolate the motor at the next safe pass gap.",
+    "downtime_saved_minutes": 0,
+    "note": "Recommendation accepted from the maintenance review panel.",
+    "id": "fb-dc365f5844",
+    "timestamp": "2026-06-12T18:15:27.750868Z"
+  },
+  {
+    "recommendation_id": "rec-4da4a35e72",
+    "equipment_id": "rm-motor-01",
+    "rating": "accepted",
+    "actual_root_cause": "AI4I heat-dissipation or power-failure pattern mapped to drive motor thermal/load stress.",
+    "action_taken": "Accepted: Reduce rolling load and isolate the motor at the next safe pass gap.",
+    "downtime_saved_minutes": 0,
+    "note": "Accepted for equipment rm-motor-01. Risk: medium, urgency: schedule.",
+    "id": "fb-0f1ff7ebe3",
+    "timestamp": "2026-06-13T05:56:29.614937Z"
+  },
+  {
+    "recommendation_id": "rec-4110400612",
+    "equipment_id": "rm-motor-01",
+    "rating": "accepted",
+    "actual_root_cause": "AI4I heat-dissipation or power-failure pattern mapped to drive motor thermal/load stress.",
+    "action_taken": "Accepted: Reduce rolling load and isolate the motor at the next safe pass gap.",
+    "downtime_saved_minutes": 0,
+    "note": "Accepted for equipment rm-motor-01. Risk: medium, urgency: schedule.",
+    "id": "fb-8ff752301d",
+    "timestamp": "2026-06-13T05:56:34.419502Z"
+  },
+  {
+    "recommendation_id": "rec-851fb8c37a",
+    "equipment_id": "rm-motor-01",
+    "rating": "accepted",
+    "actual_root_cause": "AI4I heat-dissipation or power-failure pattern mapped to drive motor thermal/load stress.",
+    "action_taken": "Accepted: Reduce rolling load and isolate the motor at the next safe pass gap.",
+    "downtime_saved_minutes": 0,
+    "note": "Accepted for equipment rm-motor-01. Risk: high, urgency: urgent.",
+    "id": "fb-04c935b6ac",
+    "timestamp": "2026-06-13T06:54:10.879693Z"
+  }
+]

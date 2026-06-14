@@ -1,0 +1,9 @@
+id,equipment_id,name,stock,lead_time_days,supplier,critical
+sp-rm-bearing,rm-motor-01,DE/NDE bearing kit,1,18,SKF Industrial,true
+sp-rm-coupling,rm-motor-01,Flexible coupling insert,3,7,KTR India,true
+sp-rm-lube,rm-motor-01,High-temp motor grease cartridge,14,3,Plant Stores,false
+sp-bf-seal,bf-pump-07,Mechanical seal cartridge,0,21,FlowServe,true
+sp-bf-impeller,bf-pump-07,Pump impeller assembly,1,30,KSB,true
+sp-cv-oil,conv-gearbox-03,ISO VG 320 gear oil,8,2,Plant Stores,false
+sp-cv-gearset,conv-gearbox-03,Stage 2 gearset,0,28,Elecon,true
+
