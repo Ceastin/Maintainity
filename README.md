@@ -73,6 +73,12 @@
 - **Multi-Source Ingestion** — Supports telemetry streams, SOPs, control-system fault codes, and spare parts inventory uploads.
 - **Live Stream Simulation** — Interactive step-by-step simulation engine powered by the UCI AI4I 2020 predictive maintenance dataset.
 
+### 🛡️ Resilience & Self-Healing
+- **Cascading Fallbacks:** Automatic routing logic that switches between OpenAI, Groq, and OpenRouter in milliseconds when rate limits occur.
+- **Agentic Debate Loop:** Built-in loop protection where the `Safety Agent` can `REJECT` a diagnostic plan, forcing the `Diagnostic Agent` to generate a corrected `Revision 1`.
+- **Token-Pressure Management:** Global cooldown mechanisms and auto-retry logic with exponential backoff handling to prevent API congestion.
+- **Heuristic Fallback:** When all cloud intelligence layers are exhausted, the system defaults to a deterministic domain-logic engine, guaranteeing 100% uptime for maintenance operations.
+
 ---
 
 ## 1. System Architecture
@@ -142,6 +148,18 @@ flowchart TB
 | **Agent** | Recommendation Pipeline | Multi-node reasoning chain that assembles diagnosis, supporting evidence, prioritised actions, and structured reports |
 | **Storage** | File-System + Docker DBs | In-memory demo state with PostgreSQL and Qdrant available via Docker Compose for production persistence |
 
+### 1.2 Resilient Agentic Pipeline
+
+Maintenance AI features a **Triple-Redundant Cascade Engine**. The system automatically detects API failures (quota exhaustion, rate limits, or downtime) and transparently failovers to the next provider without impacting the user experience.
+
+| Tier | Provider | Model | Fallback Trigger |
+| --- | --- | --- | --- |
+| **Primary** | OpenAI | `gpt-5.5` | — |
+| **Secondary** | Groq | `llama-3.3-70b-versatile` | OpenAI 429/500 Errors |
+| **Tertiary** | OpenRouter | `meta-llama/llama-3-8b-instruct` | Groq 429/404 Errors |
+
+> **Graceful Degradation:** If all three external AI providers are unavailable, the system safely falls back to a **Local Heuristic Reasoning Engine**, ensuring the plant's diagnostic capabilities remain online in an "offline-first" state.
+
 ---
 
 ## 2. Technology Stack
@@ -184,9 +202,11 @@ flowchart TB
 ### AI / ML Services
 
 | Service | Model | Purpose |
-|---------|-------|---------|
-| [OpenAI Embeddings API](https://platform.openai.com/docs/guides/embeddings) | `text-embedding-3-small` (1536-dim) | Dense semantic vector representations for RAG retrieval |
-| [OpenAI Responses API](https://platform.openai.com/docs/api-reference/responses) | `gpt-5.5` (configurable) | Natural-language copilot responses and contextual maintenance advice |
+| --- | --- | --- |
+| **OpenAI API** | `gpt-5.5` | Primary reasoning and copilot responses |
+| **Groq API** | `llama-3.3-70b-versatile` | High-speed secondary reasoning agent |
+| **OpenRouter** | `meta-llama/llama-3-8b-instruct` | Tertiary free-tier resilience fallback |
+| **Embeddings** | `text-embedding-3-small` | Semantic RAG retrieval (with local hash fallback) |
 
 ---
 
@@ -451,13 +471,17 @@ cp .env.example .env
 Open `.env` and set your configuration:
 
 ```env
-# Required for LLM features (optional — system works without it)
-OPENAI_API_KEY=your-openai-api-key-here
-
-# Optional — defaults are sensible
-OPENAI_MODEL=gpt-5.5
-OPENAI_EMBEDDING_MODEL=text-embedding-3-small
-STEELGUARD_RAG_MODE=openai        # Set to "local" for offline mode
+# --- Primary ---
+OPENAI_API_KEY=sk-your-openai-key-here
+# --- Secondary (Groq) ---
+FALLBACK_API_KEY=gsk_your_groq_key_here
+FALLBACK_BASE_URL=https://api.groq.com/openai/v1/chat/completions
+FALLBACK_MODEL=llama-3.3-70b-versatile
+# --- Tertiary (OpenRouter) ---
+OPENROUTER_API_KEY=sk-or-v1-your-openrouter-key-here
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1/chat/completions
+OPENROUTER_MODEL=meta-llama/llama-3-8b-instruct
+# --- Configuration ---
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 

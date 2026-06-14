@@ -15,7 +15,11 @@ OPENAI_EMBEDDINGS_URL = "https://api.openai.com/v1/embeddings"
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
 DEFAULT_MODEL = "gpt-5.5"
 DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
-
+def _mask_key(key: str | None) -> str:
+    """Safely prints the first and last few characters of an API key for debugging."""
+    if not key:
+        return "NONE"
+    return f"{key[:6]}...{key[-4:]}" if len(key) > 10 else "INVALID_LENGTH"
 
 def openai_available() -> bool:
     return bool(_api_key())
@@ -57,10 +61,10 @@ def generate_embeddings(texts: Sequence[str]) -> list[list[float]] | None:
         return None
     return vectors
 
-
 def generate_copilot_reply(message: str, recommendation: Recommendation, conversation_history: Sequence[str] | None = None) -> str | None:
     api_key = _api_key()
-    if not api_key:
+    # Update early exit: Proceed if either OpenAI or Fallback key is present
+    if not api_key and not _env_value("FALLBACK_API_KEY"):
         return None
 
     equipment = data.EQUIPMENT[recommendation.equipment_id]
@@ -145,19 +149,26 @@ def generate_copilot_reply(message: str, recommendation: Recommendation, convers
         "max_output_tokens": 520,
     }
 
-    try:
-        with httpx.Client(timeout=25) as client:
-            response = client.post(
-                OPENAI_RESPONSES_URL,
-                headers=_headers(api_key),
-                json=payload,
-            )
-            response.raise_for_status()
-    except httpx.HTTPError:
-        return None
+    raw = None
+    # Only try OpenAI if the key is valid
+    if api_key:
+        try:
+            with httpx.Client(timeout=25) as client:
+                response = client.post(
+                    OPENAI_RESPONSES_URL,
+                    headers=_headers(api_key),
+                    json=payload,
+                )
+                response.raise_for_status()
+                raw = _extract_response_text(response.json())
+        except httpx.HTTPError:
+            print("OpenAI failed in copilot reply. Transitioning to Groq...")
 
-    return _extract_response_text(response.json())
+    # Route to Groq fallback if OpenAI failed or key was missing
+    if not raw:
+        raw = _call_fallback_llm(payload["instructions"], payload["input"], 520)
 
+    return raw
 
 def _api_key() -> str:
     return _normalize_key(_env_value("OPENAI_API_KEY"))
@@ -222,6 +233,7 @@ def generate_diagnosis_and_actions(
     ml_prediction: dict[str, Any] | None,
     process_defects: list[dict[str, Any]],
     alert_message: str | None,
+    safety_feedback: str | None = None,
 ) -> dict[str, Any] | None:
     """Call the LLM to generate context-aware root causes, actions, and escalation trigger.
 
@@ -229,7 +241,9 @@ def generate_diagnosis_and_actions(
     Returns None if OpenAI is unavailable or the request fails.
     """
     api_key = _api_key()
-    if not api_key:
+    
+    # Allow function to proceed if either OpenAI or Groq fallback key exists
+    if not api_key and not _env_value("FALLBACK_API_KEY"):
         return None
 
     context = {
@@ -244,12 +258,19 @@ def generate_diagnosis_and_actions(
         "evidence_from_rag": evidence_items,
         "active_alert": alert_message,
     }
-
+    
+    feedback_instruction = ""
+    if safety_feedback:
+        feedback_instruction = (
+            f"\n\nCRITICAL SAFETY FEEDBACK FROM PREVIOUS DRAFT:\n{safety_feedback}\n"
+            "You MUST revise your immediate_actions to address this safety violation.\n\n"
+        )
+        
     payload = {
         "model": _env_value("OPENAI_MODEL") or DEFAULT_MODEL,
         "reasoning": {"effort": "medium"},
         "instructions": (
-            "You are  AI's maintenance reasoning engine for a steel manufacturing plant. "
+            "You are AI's maintenance reasoning engine for a steel manufacturing plant. "
             "Given the equipment context, live sensor readings, RAG-retrieved evidence (from manuals, SOPs, "
             "failure reports, maintenance logs, and engineer feedback), ML predictions, and process defect signals, "
             "generate a structured maintenance recommendation.\n\n"
@@ -260,6 +281,7 @@ def generate_diagnosis_and_actions(
             "- If process defects are detected, factor them into immediate actions.\n"
             "- Actions should be concrete and operational, not generic advice.\n"
             "- Escalation trigger should be a specific condition (threshold + time) that requires emergency response.\n\n"
+            f"{feedback_instruction}"
             "Return ONLY valid JSON with this exact structure (no markdown, no code fences):\n"
             "{\n"
             '  "root_causes": ["cause 1", "cause 2", "cause 3", "cause 4"],\n'
@@ -272,19 +294,35 @@ def generate_diagnosis_and_actions(
         "max_output_tokens": 700,
     }
 
-    try:
-        with httpx.Client(timeout=30) as client:
-            response = client.post(
-                OPENAI_RESPONSES_URL,
-                headers=_headers(api_key),
-                json=payload,
-            )
-            response.raise_for_status()
-    except httpx.HTTPError:
-        return None
+    print("\n=== [DEBUG] LLM DIAGNOSIS PIPELINE START ===")
+    
+    raw = None
+    if api_key:
+        try:
+            print("[DEBUG OpenAI] Sending request to OpenAI API...")
+            with httpx.Client(timeout=30) as client:
+                response = client.post(
+                    OPENAI_RESPONSES_URL,
+                    headers=_headers(api_key),
+                    json=payload,
+                )
+                response.raise_for_status()
+                raw = _extract_response_text(response.json())
+                print(f"[DEBUG OpenAI] SUCCESS! Received {len(raw if raw else '')} characters.")
+                
+        except httpx.HTTPStatusError as e:
+            print(f"[ERROR OpenAI] HTTP Status Error: {e.response.status_code}")
+            print(f"[ERROR OpenAI] Response Body: {e.response.text}")
+        except Exception as e:
+            print(f"[ERROR OpenAI] General Exception: {e}")
 
-    raw = _extract_response_text(response.json())
+    # Route to Groq fallback if OpenAI failed or key was missing
     if not raw:
+        raw = _call_fallback_llm(payload["instructions"], payload["input"], 700)
+
+    # If BOTH models failed, safely exit to the local templates
+    if not raw:
+        print("[FATAL DEBUG] Both OpenAI and Groq failed. Falling back to local templates.")
         return None
 
     # Strip markdown code fences if the model wrapped the JSON
@@ -294,9 +332,14 @@ def generate_diagnosis_and_actions(
         lines = [line for line in lines if not line.strip().startswith("```")]
         cleaned = "\n".join(lines).strip()
 
+    print(f"[DEBUG Pipeline] Attempting to parse JSON string: {cleaned[:100]}...")
+
     try:
         parsed = json.loads(cleaned)
-    except (json.JSONDecodeError, ValueError):
+        print("[DEBUG Pipeline] JSON successfully parsed into a dictionary.")
+    except (json.JSONDecodeError, ValueError) as e:
+        print(f"[ERROR Pipeline] JSON Decode Failed: {e}")
+        print(f"[ERROR Pipeline] Raw string was: {cleaned}")
         return None
 
     # Validate shape
@@ -323,4 +366,108 @@ def generate_diagnosis_and_actions(
         "long_term_actions": [str(item) for item in long_term_actions[:5]],
         "escalation_trigger": str(escalation_trigger),
     }
+def evaluate_safety(actions: list[str], evidence: list[dict[str, str]]) -> str:
+    """Safety Agent: Evaluates proposed actions against SOP evidence."""
+    api_key = _api_key()
+    if not api_key and not _env_value("FALLBACK_API_KEY"):
+        return "APPROVED" # Fallback to true bypass if no keys exist
 
+    payload = {
+        "model": _env_value("OPENAI_MODEL") or DEFAULT_MODEL,
+        "instructions": (
+            "You are the Chief Safety Officer at a steel plant. "
+            "Review the proposed maintenance actions against the provided SOPs/Evidence. "
+            "Look for missing Lockout/Tagout (LOTO) steps, ignored temperature cooling times, or unsafe interventions. "
+            "If the plan is safe, output EXACTLY the word 'APPROVED'. "
+            "If it is unsafe, output 'REJECTED:' followed by a 1-sentence explanation of what safety step must be added."
+        ),
+        "input": json.dumps({"proposed_actions": actions, "sops_and_evidence": evidence}),
+        "max_output_tokens": 150,
+    }
+
+    raw = None
+    if api_key:
+        try:
+            with httpx.Client(timeout=15) as client:
+                response = client.post(OPENAI_RESPONSES_URL, headers=_headers(api_key), json=payload)
+                response.raise_for_status()
+                raw = _extract_response_text(response.json())
+        except Exception:
+            print("OpenAI failed in Safety Agent. Transitioning to Groq...")
+
+    # Route to Groq fallback if OpenAI fails or key doesn't exist
+    if not raw:
+        raw = _call_fallback_llm(payload["instructions"], payload["input"], 150)
+
+    return raw if raw else "APPROVED"
+
+def _call_fallback_llm(system_instruction: str, user_input: str, max_tokens: int) -> str | None:
+    """Cascading Fallback: Tries Groq first. If rate-limited, instantly falls back to OpenRouter."""
+    
+    # Define our fallback cascade order
+    providers = [
+        {
+            "name": "Groq",
+            "key": _env_value("FALLBACK_API_KEY"),
+            "url": _env_value("FALLBACK_BASE_URL"),
+            "model": _env_value("FALLBACK_MODEL")
+        },
+        {
+            "name": "OpenRouter",
+            "key": _env_value("OPENROUTER_API_KEY"),
+            "url": _env_value("OPENROUTER_BASE_URL") or "https://openrouter.ai/api/v1/chat/completions",
+            "model": _env_value("OPENROUTER_MODEL") or "google/gemini-2.0-flash-lite-preview-02-05:free"
+        }
+    ]
+
+    for provider in providers:
+        if not provider["key"]:
+            continue
+
+        print(f"\n--- [DEBUG] TRIGGERING {provider['name'].upper()} FALLBACK ---")
+        
+        payload = {
+            "model": provider["model"],
+            "messages": [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": user_input}
+            ],
+            "max_tokens": max_tokens,
+            "temperature": 0.2
+        }
+
+        try:
+            print(f"[DEBUG {provider['name']}] Sending request...")
+            with httpx.Client(timeout=30) as client:
+                response = client.post(
+                    provider["url"],
+                    headers={
+                        "Authorization": f"Bearer {provider['key']}",
+                        "Content-Type": "application/json",
+                        # OpenRouter optional headers for ranking
+                        "HTTP-Referer": "http://localhost:3000", 
+                        "X-Title": "SteelGuard AI"
+                    },
+                    json=payload,
+                )
+                
+                # If this provider rate limits us, don't sleep. Just move to the next provider!
+                if response.status_code == 429:
+                    print(f"[WARNING {provider['name']}] Rate limit hit (429). Cascading to next provider...")
+                    continue 
+
+                response.raise_for_status()
+                result = response.json()["choices"][0]["message"]["content"].strip()
+                print(f"[DEBUG {provider['name']}] SUCCESS! Received {len(result)} characters.")
+                return result
+
+        except httpx.HTTPStatusError as e:
+            print(f"[ERROR {provider['name']}] HTTP Error: {e.response.status_code}. Moving to next provider...")
+            print(f"[ERROR {provider['name']}] Details: {e.response.text}")
+            continue
+        except Exception as e:
+            print(f"[ERROR {provider['name']}] Exception: {e}. Moving to next provider...")
+            continue
+
+    print("[FATAL DEBUG] All fallback providers (Groq & OpenRouter) exhausted. Using local templates.")
+    return None

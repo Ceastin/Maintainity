@@ -7,10 +7,12 @@ from . import data
 from .defects import detect_process_defects
 from .ml_model import predict_failure
 from .models import Evidence, Recommendation
-from .openai_client import generate_diagnosis_and_actions
+from .openai_client import generate_diagnosis_and_actions, evaluate_safety
 from .rag import search_evidence
 from .scoring import compute_anomaly_score, compute_priority_score, estimate_rul, risk_from_priority, urgency_from_risk
-
+import operator
+from typing import TypedDict, Annotated, Any
+from langgraph.graph import StateGraph, END
 
 def latest_reading(equipment_id: str):
     readings = [reading for reading in data.SENSOR_READINGS if reading.equipment_id == equipment_id]
@@ -129,12 +131,110 @@ def _spare_strategy(equipment_id: str) -> list[str]:
     return strategy
 
 
+# --- LANGGRAPH MULTI-AGENT SETUP ---
+class MaintenanceState(TypedDict):
+    equipment_id: str
+    equipment_context: dict[str, Any]
+    sensor_metrics: dict[str, float]
+    evidence_items: list[dict[str, str]]
+    anomaly_score: float
+    rul_hours: int
+    risk_level: str
+    urgency: str
+    ml_prediction: dict[str, Any] | None
+    process_defects: list[dict[str, Any]]
+    alert_message: str | None
+    
+    # Agent Outputs
+    root_causes: list[str]
+    immediate_actions: list[str]
+    long_term_actions: list[str]
+    escalation_trigger: str
+    spare_strategy: list[str]
+    node_trace: list[dict[str, Any]]
+    
+    # Debate variables
+    safety_feedback: str | None
+    revision_count: int
+
+def diagnostic_node(state: MaintenanceState) -> dict:
+    """Agent 1: Drafts the initial diagnosis and repair plan."""
+    llm_result = generate_diagnosis_and_actions(
+        equipment_context=state["equipment_context"],
+        sensor_metrics=state["sensor_metrics"],
+        evidence_items=state["evidence_items"],
+        anomaly_score=state["anomaly_score"],
+        rul_hours=state["rul_hours"],
+        risk_level=state["risk_level"],
+        urgency=state["urgency"],
+        ml_prediction=state["ml_prediction"],
+        process_defects=state["process_defects"],
+        alert_message=state["alert_message"],
+        safety_feedback=state["safety_feedback"]
+    )
+    
+    if llm_result:
+        trace = {"node": "diagnostic_agent", "status": "complete", "summary": f"Drafted plan (Revision {state['revision_count']})."}
+        return {
+            "root_causes": llm_result["root_causes"],
+            "immediate_actions": llm_result["immediate_actions"],
+            "long_term_actions": llm_result["long_term_actions"],
+            "escalation_trigger": llm_result["escalation_trigger"],
+            "node_trace": state["node_trace"] + [trace]
+        }
+    return {} # Fallback handled if API fails
+
+def procurement_node(state: MaintenanceState) -> dict:
+    """Agent 2: Acts as a tool to cross-reference inventory."""
+    strategy = _spare_strategy(state["equipment_id"])
+    trace = {"node": "procurement_agent", "status": "complete", "summary": f"Attached inventory strategy for {len(strategy)} items."}
+    return {"spare_strategy": strategy, "node_trace": state["node_trace"] + [trace]}
+
+def safety_node(state: MaintenanceState) -> dict:
+    """Agent 3: Reviews the plan against SOPs."""
+    if not state.get("immediate_actions"):
+        return {} # Skip if diagnosis failed
+        
+    feedback = evaluate_safety(state["immediate_actions"], state["evidence_items"])
+    status = "APPROVED" if "APPROVED" in feedback.upper() else "REJECTED"
+    
+    trace = {"node": "safety_agent", "status": "complete" if status == "APPROVED" else "warning", "summary": f"Safety Review: {status}"}
+    
+    return {
+        "safety_feedback": feedback if status == "REJECTED" else None,
+        "revision_count": state["revision_count"] + 1,
+        "node_trace": state["node_trace"] + [trace]
+    }
+
+def route_after_safety(state: MaintenanceState) -> str:
+    """Router: Forces a rewrite if safety rejects it (max 2 retries)."""
+    if state.get("safety_feedback") and state["revision_count"] < 2:
+        return "diagnostic_agent"
+    return END
+
+# Build the Graph
+workflow = StateGraph(MaintenanceState)
+workflow.add_node("diagnostic_agent", diagnostic_node)
+workflow.add_node("procurement_agent", procurement_node)
+workflow.add_node("safety_agent", safety_node)
+
+workflow.set_entry_point("diagnostic_agent")
+workflow.add_edge("diagnostic_agent", "procurement_agent")
+workflow.add_edge("procurement_agent", "safety_agent")
+workflow.add_conditional_edges("safety_agent", route_after_safety)
+
+agent_pipeline = workflow.compile()
+# --- END LANGGRAPH SETUP ---
+
+
 def generate_recommendation(equipment_id: str, query: str, alert_id: str | None = None) -> Recommendation:
     if equipment_id not in data.EQUIPMENT:
         raise KeyError(f"Unknown equipment {equipment_id}")
+        
     equipment = data.EQUIPMENT[equipment_id]
     reading = latest_reading(equipment_id)
     alert = data.ALERTS.get(alert_id or "")
+    
     evidence_query = (
         f"{equipment.name} {query} {_metric_phrase(reading)} {alert.message if alert else ''} "
         "manual SOP failure report incident breakdown delay log fault event abnormality alert "
@@ -155,21 +255,26 @@ def generate_recommendation(equipment_id: str, query: str, alert_id: str | None 
     urgency = urgency_from_risk(risk_level, rul.hours)
     process_defects = detect_process_defects(equipment, reading, anomaly)
 
-    # ── Try LLM-enhanced root causes and actions first, fall back to templates ──
-    llm_result = generate_diagnosis_and_actions(
-        equipment_context={
-            "id": equipment.id,
-            "name": equipment.name,
-            "area": equipment.area,
-            "asset_type": equipment.asset_type,
-            "criticality": equipment.criticality,
-            "description": equipment.description,
-        },
+    node_trace = [
+        {"node": "triage", "status": "complete", "summary": f"Mapped query to {equipment.name} with risk {risk_level}."},
+        {"node": "evidence_retrieval", "status": "complete", "summary": f"Retrieved {len(evidence)} source-backed evidence items."},
+        {"node": "prediction", "status": "complete", "summary": f"Anomaly score {anomaly}; RUL {rul.hours} hours."},
+        {"node": "process_defect_rules", "status": "complete", "summary": f"Detected {len(process_defects)} steel process defect indicators."},
+    ]
+    
+    if ml_prediction:
+        node_trace.append({
+            "node": "ml_classifier",
+            "status": "complete",
+            "summary": f"{ml_prediction.model_name} estimated {int(ml_prediction.failure_probability * 100)}% failure probability and mode {ml_prediction.predicted_failure_mode.replace('_', ' ')}."
+        })
+
+    # ── 🚀 RUN THE AGENTIC GRAPH ──
+    initial_state = MaintenanceState(
+        equipment_id=equipment_id,
+        equipment_context={"id": equipment.id, "name": equipment.name, "area": equipment.area, "asset_type": equipment.asset_type, "criticality": equipment.criticality, "description": equipment.description},
         sensor_metrics=reading.metrics,
-        evidence_items=[
-            {"title": item.title, "source_type": item.source_type, "excerpt": item.excerpt}
-            for item in evidence[:5]
-        ],
+        evidence_items=[{"title": item.title, "source_type": item.source_type, "excerpt": item.excerpt} for item in evidence[:5]],
         anomaly_score=anomaly,
         rul_hours=rul.hours,
         risk_level=risk_level,
@@ -177,74 +282,51 @@ def generate_recommendation(equipment_id: str, query: str, alert_id: str | None 
         ml_prediction=ml_prediction.model_dump() if ml_prediction else None,
         process_defects=[item.model_dump() for item in process_defects[:3]],
         alert_message=alert.message if alert else None,
+        root_causes=[],
+        immediate_actions=[],
+        long_term_actions=[],
+        escalation_trigger="",
+        spare_strategy=[],
+        safety_feedback=None,
+        revision_count=0,
+        node_trace=node_trace
     )
 
-    used_llm_reasoning = False
-    if llm_result:
-        causes = llm_result["root_causes"]
-        immediate = llm_result["immediate_actions"]
-        long_term = llm_result["long_term_actions"]
-        trigger = llm_result["escalation_trigger"]
-        used_llm_reasoning = True
+    final_state = agent_pipeline.invoke(initial_state)
+
+    # Extract results from the graph
+    used_llm_reasoning = bool(final_state.get("root_causes"))
+    
+    if used_llm_reasoning:
+        causes = final_state["root_causes"]
+        immediate = final_state["immediate_actions"]
+        long_term = final_state["long_term_actions"]
+        trigger = final_state["escalation_trigger"]
+        spare_strat = final_state["spare_strategy"]
+        node_trace = final_state["node_trace"]
+        node_trace.append({"node": "llm_reasoning", "status": "complete", "summary": "Root causes and actions generated by Multi-Agent Graph."})
     else:
         # Fallback to template-based reasoning
         causes = _root_causes(equipment_id, evidence)
         for defect in process_defects[:2]:
             causes.append(f"Process rule flags {defect.defect_type.replace('_', ' ')}: {defect.explanation}")
         if ml_prediction and ml_prediction.failure_likely and ml_prediction.predicted_failure_mode != "none":
-            causes.insert(
-                0,
-                (
-                    f"Trained AI4I classifier flags {ml_prediction.predicted_failure_mode.replace('_', ' ')} "
-                    f"with {int(ml_prediction.failure_probability * 100)}% failure probability."
-                ),
-            )
+            causes.insert(0, f"Trained AI4I classifier flags {ml_prediction.predicted_failure_mode.replace('_', ' ')} with {int(ml_prediction.failure_probability * 100)}% failure probability.")
         immediate, long_term, trigger = _actions(equipment_id, risk_level)
+        spare_strat = _spare_strategy(equipment_id)
+        node_trace.append({"node": "llm_reasoning", "status": "fallback", "summary": "OpenAI unavailable or request failed; used domain-specific template reasoning."})
+
+    node_trace.extend([
+        {"node": "maintenance_planner", "status": "complete", "summary": f"Urgency set to {urgency} with spare pressure {_spare_pressure(equipment_id)}."},
+        {"node": "report_ready", "status": "complete", "summary": "Structured recommendation is ready for dashboard and report generation."},
+    ])
 
     diagnosis = _diagnosis(equipment_id, reading, risk_level, ml_prediction)
     feedback_used = any(item.source_type == "feedback" for item in evidence)
     ml_confidence_lift = 0.04 if ml_prediction and ml_prediction.failure_likely else 0.02 if ml_prediction else 0.0
     llm_confidence_lift = 0.05 if used_llm_reasoning else 0.0
     confidence = round(min(0.96, 0.62 + anomaly * 0.16 + len(evidence) * 0.035 + (0.06 if feedback_used else 0) + ml_confidence_lift + llm_confidence_lift), 2)
-    node_trace = [
-        {"node": "triage", "status": "complete", "summary": f"Mapped query to {equipment.name} with risk {risk_level}."},
-        {"node": "evidence_retrieval", "status": "complete", "summary": f"Retrieved {len(evidence)} source-backed evidence items."},
-        {"node": "prediction", "status": "complete", "summary": f"Anomaly score {anomaly}; RUL {rul.hours} hours."},
-        {"node": "process_defect_rules", "status": "complete", "summary": f"Detected {len(process_defects)} steel process defect indicators."},
-    ]
-    if ml_prediction:
-        node_trace.append(
-            {
-                "node": "ml_classifier",
-                "status": "complete",
-                "summary": (
-                    f"{ml_prediction.model_name} estimated {int(ml_prediction.failure_probability * 100)}% failure probability "
-                    f"and mode {ml_prediction.predicted_failure_mode.replace('_', ' ')}."
-                ),
-            }
-        )
-    if used_llm_reasoning:
-        node_trace.append(
-            {
-                "node": "llm_reasoning",
-                "status": "complete",
-                "summary": "Root causes and actions generated by LLM using RAG evidence, sensor data, ML prediction, and process defect context.",
-            }
-        )
-    else:
-        node_trace.append(
-            {
-                "node": "llm_reasoning",
-                "status": "fallback",
-                "summary": "OpenAI unavailable or request failed; used domain-specific template reasoning with ML and defect augmentation.",
-            }
-        )
-    node_trace.extend(
-        [
-            {"node": "maintenance_planner", "status": "complete", "summary": f"Urgency set to {urgency} with spare pressure {_spare_pressure(equipment_id)}."},
-            {"node": "report_ready", "status": "complete", "summary": "Structured recommendation is ready for dashboard and report generation."},
-        ]
-    )
+
     recommendation = Recommendation(
         id=f"rec-{uuid4().hex[:10]}",
         equipment_id=equipment_id,
@@ -257,7 +339,7 @@ def generate_recommendation(equipment_id: str, query: str, alert_id: str | None 
         evidence=evidence,
         immediate_actions=immediate,
         long_term_actions=long_term,
-        spare_strategy=_spare_strategy(equipment_id),
+        spare_strategy=spare_strat,
         process_defects=process_defects,
         confidence=confidence,
         assumptions=[
@@ -269,9 +351,9 @@ def generate_recommendation(equipment_id: str, query: str, alert_id: str | None 
         ml_prediction=ml_prediction,
         node_trace=node_trace,
     )
+    
     data.RECOMMENDATIONS[recommendation.id] = recommendation
     return recommendation
-
 
 def _ml_sentence(ml_prediction) -> str:
     if not ml_prediction:

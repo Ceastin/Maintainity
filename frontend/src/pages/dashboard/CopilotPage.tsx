@@ -1,11 +1,58 @@
 import { useState, useRef, useEffect } from "react"
-import { Bot, Send, User } from "lucide-react"
+import { Bot, Send, User, ChevronDown, ChevronUp, CheckCircle, AlertTriangle, Activity } from "lucide-react"
 import { useDashboard } from "@/context/DashboardContext"
 import { SectionHeading } from "@/components/shared/SectionHeading"
+
+// Defined the strict type for the backend trace
+interface NodeTraceItem {
+  node: string
+  status: "complete" | "fallback" | "warning"
+  summary: string
+}
 
 interface ChatMessage {
   role: "user" | "assistant"
   content: string
+  nodeTrace?: NodeTraceItem[]
+}
+
+// Component to render the pipeline analysis drawer
+const NodeTraceView = ({ trace }: { trace: NodeTraceItem[] }) => {
+  const [isOpen, setIsOpen] = useState(false)
+  
+  return (
+    <div className="mt-3 border border-sg-stone rounded-lg overflow-hidden bg-white shadow-sm">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold uppercase tracking-wider bg-sg-marble/50 text-sg-dark hover:bg-sg-marble transition-colors"
+      >
+        <span className="flex items-center gap-2">
+          <Activity size={12} /> Pipeline Analysis
+        </span>
+        {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+      </button>
+      
+      {isOpen && (
+        <div className="p-2 space-y-1 bg-white">
+          {trace.map((item, idx) => (
+            <div key={idx} className="flex items-start gap-2 text-[11px] py-1 border-b border-sg-stone/50 last:border-0">
+              <div className="mt-0.5">
+                {item.status === "complete" ? (
+                  <CheckCircle size={10} className="text-green-500" />
+                ) : (
+                  <AlertTriangle size={10} className="text-amber-500" />
+                )}
+              </div>
+              <div>
+                <span className="font-bold text-sg-dark capitalize">{item.node.replace('_', ' ')}</span>
+                <p className="text-sg-slate leading-tight">{item.summary}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function CopilotPage() {
@@ -30,9 +77,27 @@ export default function CopilotPage() {
     setInput("")
     setMessages((prev) => [...prev, { role: "user", content: userMsg }])
     setSending(true)
+    
     try {
       const response = await sendChat(userMsg)
-      setMessages((prev) => [...prev, { role: "assistant", content: response.message }])
+      
+      // FIX: Safely map backend data to the NodeTraceItem[] type
+      const traceData: NodeTraceItem[] = (response.recommendation?.node_trace || []).map((item: any) => ({
+        node: String(item.node || "process"),
+        status: (item.status === "complete" || item.status === "fallback" || item.status === "warning") 
+          ? item.status 
+          : "complete",
+        summary: String(item.summary || "")
+      }))
+
+      setMessages((prev) => [
+        ...prev, 
+        { 
+          role: "assistant", 
+          content: response.message,
+          nodeTrace: traceData 
+        }
+      ])
     } catch {
       setMessages((prev) => [...prev, { role: "assistant", content: "Sorry, I encountered an error processing your request." }])
     } finally {
@@ -68,6 +133,9 @@ export default function CopilotPage() {
                 }`}
               >
                 {msg.content}
+                
+                {/* Render pipeline analysis if trace data exists */}
+                {msg.nodeTrace && msg.nodeTrace.length > 0 && <NodeTraceView trace={msg.nodeTrace} />}
               </div>
               {msg.role === "user" && (
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sg-stone">
