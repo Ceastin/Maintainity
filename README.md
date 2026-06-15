@@ -848,12 +848,12 @@ The recommendation panel presents the complete AI-generated maintenance analysis
 ### Maintenance Wizard Chat
 The copilot interface supports multi-turn conversational maintenance queries with full context retention, conversation memory, and equipment-specific responses grounded in the RAG + ML pipeline.
 
-![Maintenance Wizard Chat — Multi-turn AI copilot for maintenance queries](docs/screenshots/Chat_box.png)
+![Maintenance Wizard Chat — Multi-turn AI copilot for maintenance queries](docs/screenshots/Chat_Box.png)
 
 ### ML Predictive Insights
 The predictive insights panel surfaces real-time ML performance metrics, failure probability trend lines, predicted failure mode distributions, and feature importance rankings — delivering transparent and explainable AI diagnostics.
 
-![ML Predictive Insights — Model metrics, failure trends, and feature importance](docs/screenshots/ml_insights.png)
+![ML Predictive Insights — Model metrics, failure trends, and feature importance](docs/screenshots/Ml_Insights.png)
 
 ---
 
