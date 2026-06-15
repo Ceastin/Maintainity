@@ -240,6 +240,7 @@ The final recommendation is delivered across three channels simultaneously: the 
 Engineers review AI recommendations and submit feedback (Accept / Correct / Reject). Accepted and corrected feedback is persisted to disk and re-injected into the RAG corpus, enabling the system to improve with each interaction.
 
 ### Primary Feature (Multimodal Agentic + Fallback Mechanism System) 
+```
 ╔═════════════════════════════════════════════════════════════════════════╗
 ║                 USER QUERY & TELEMETRY STREAM INPUT                     ║
 ╚════════════════════════════════════╤════════════════════════════════════╝
@@ -291,6 +292,7 @@ Engineers review AI recommendations and submit feedback (Accept / Correct / Reje
 ║ │ Dashboard UI    │     │ Copilot Chat / Trace  │     │ Markdown PDF  │ ║
 ║ └─────────────────┘     └───────────────────────┘     └───────────────┘ ║
 ╚═════════════════════════════════════════════════════════════════════════╝
+```
 ---
 
 ## 4. Model Design & Reasoning Pipeline
