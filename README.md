@@ -239,6 +239,58 @@ The final recommendation is delivered across three channels simultaneously: the 
 **⑥ Feedback Loop**
 Engineers review AI recommendations and submit feedback (Accept / Correct / Reject). Accepted and corrected feedback is persisted to disk and re-injected into the RAG corpus, enabling the system to improve with each interaction.
 
+### Primary Feature (Multimodal Agentic + Fallback Mechanism System) 
+╔═════════════════════════════════════════════════════════════════════════╗
+║                 USER QUERY & TELEMETRY STREAM INPUT                     ║
+╚════════════════════════════════════╤════════════════════════════════════╝
+                                     │
+             ┌───────────────────────┴───────────────────────┐
+             ▼                                               ▼
+    ┌─────────────────┐                             ┌─────────────────┐
+    │  Triage Agent   │                             │ Evidence Agent  │
+    │ (Risk Scoring)  │                             │  (RAG Search)   │
+    └────────┬────────┘                             └────────┬────────┘
+             └───────────────────────┬───────────────────────┘
+                                     ▼
+╔═════════════════════════════════════════════════════════════════════════╗
+║                  LLM CASCADE ENGINE (POWERS ALL AGENTS)                 ║
+║ ┌─────────────────────────────────────────────────────────────────────┐ ║
+║ │ 1. Primary: OpenAI (gpt-5.5)        [If 429/500 Quota/Error] ──┐    │ ║
+║ │ 2. Secondary: Groq (llama-3.3)      [If 429/404 Rate Limit] ───┼─┐  │ ║
+║ │ 3. Tertiary: OpenRouter (llama-3)   [If Cloud Exhausted] ──────┼─┼┐ │ ║
+║ │ 4. Offline: Local Heuristic Engine  [Ultimate Fallback] ◄──────┴─┴┘ │ ║
+║ └─────────────────────────────────────────────────────────────────────┘ ║
+╚════════════════════════════════════╤════════════════════════════════════╝
+                                     │
+                                     ▼
+╔═════════════════════════════════════════════════════════════════════════╗
+║                    AGENTIC DEBATE & REASONING LOOP                      ║
+║                                                                         ║
+║        ┌───────────────────────┐             ┌───────────────────────┐  ║
+║   ┌──► │   Diagnostic Agent    │ ──────────► │     Safety Agent      │  ║
+║   │    │  (Drafts Repair Plan) │             │  (Guardrail Checks)   │  ║
+║   │    └───────────────────────┘             └───────────┬───────────┘  ║
+║   │                                                      │              ║
+║   │                                    ┌─────────────────┴────────┐     ║
+║   │ (Revision 1)                       ▼                          ▼     ║
+║   └─────────────────────────────── [REJECTED]                 [APPROVED]║
+║                                    Violates SOP                   │     ║
+╚═══════════════════════════════════════════════════════════════════╤═════╝
+                                                                    │
+                                     ┌──────────────────────────────┘
+                                     ▼
+                            ┌─────────────────┐
+                            │ Procurement     │
+                            │ Planner Agent   │
+                            │(Attaches Spares)│
+                            └────────┬────────┘
+                                     ▼
+╔═════════════════════════════════════════════════════════════════════════╗
+║                      OUTPUT PRESENTATION LAYER                          ║
+║ ┌─────────────────┐     ┌───────────────────────┐     ┌───────────────┐ ║
+║ │ Dashboard UI    │     │ Copilot Chat / Trace  │     │ Markdown PDF  │ ║
+║ └─────────────────┘     └───────────────────────┘     └───────────────┘ ║
+╚═════════════════════════════════════════════════════════════════════════╝
 ---
 
 ## 4. Model Design & Reasoning Pipeline
@@ -854,7 +906,7 @@ The copilot interface supports multi-turn conversational maintenance queries wit
 The predictive insights panel surfaces real-time ML performance metrics, failure probability trend lines, predicted failure mode distributions, and feature importance rankings — delivering transparent and explainable AI diagnostics.
 
 ![ML Predictive Insights — Model metrics, failure trends, and feature importance](docs/screenshots/Ml_Insights.png)
-
+![ Health Insights — Instruments](docs/screenshots/Health_Insights.png)
 ---
 
 ## 🧠 ML Model Deep Dive — Why ExtraTrees + Random Forest?
