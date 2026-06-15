@@ -838,7 +838,7 @@ An academic-depth blueprint illustrating multi-modal telemetry ingestion, hybrid
 ### Operations Dashboard
 The main dashboard delivers a plant-wide overview: real-time equipment health tiles, sensor trend visualisations, alert management, and AI-powered status indicators — all in one unified view.
 
-![Operations Dashboard — Plant summary, equipment health tiles, sensor trend charts, and alert management](docs/screenshots/dashboard,png.png)
+![Operations Dashboard — Plant summary, equipment health tiles, sensor trend charts, and alert management](docs/screenshots/Dashboard,png.png)
 
 ### AI Recommendation Panel
 The recommendation panel presents the complete AI-generated maintenance analysis — diagnosis, root causes, prioritised action checklist, cited evidence with relevance scores, and the full node-trace pipeline visualisation.
