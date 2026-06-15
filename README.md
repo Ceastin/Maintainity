@@ -214,7 +214,7 @@ Maintainity AI features a **Triple-Redundant Cascade Engine**. The system automa
 
 The diagram below traces the complete lifecycle of a sensor reading — from initial stream ingestion through ML classification to final maintenance report delivery.
 
-![Data Flow and System Flow Diagram](docs/screenshots/data_flow_diagram.png)
+![Data Flow and System Flow Diagram](docs/screenshots/Data_Flow_Diagram.png.png)
 
 ### Detailed Flow Steps
 
